@@ -3,7 +3,11 @@ import socket
 import csv
 from collections import defaultdict
 from datetime import datetime
+import joblib  # Thay đổi tùy thuộc vào cách bạn lưu mô hình
+import numpy as np
 
+# Tải mô hình đã huấn luyện
+model = joblib.load('./trained/random_forest_model.joblib')  # Thay đổi đường dẫn đến mô hình của bạn
 
 def get_local_ip():
     # Get the hostname of the local machine
@@ -14,39 +18,69 @@ def get_local_ip():
     ipv4_addresses = [addr[4][0] for addr in ip_addresses if addr[0] == socket.AF_INET]
     ipv6_addresses = [addr[4][0] for addr in ip_addresses if addr[0] == socket.AF_INET6]
     return [ipv6_addresses, ipv4_addresses]
-        
-def calculate_features(packets):
+
+def calculate_features(port,packets):
     local_ip = get_local_ip()
     features = {}
-    total_fwd_packets = 0
-    total_fwd_packet_length = 0
-    total_bwd_packets = 0
+    
+    flow_duration = df.loc[df['Destination Port'] == port, 'Flow Duration'].values[0] if port in df['Destination Port'].values else 0
+
+    total_fwd_packets = df.loc[df['Destination Port'] == port, 'Total Fwd Packets'].values[0] if port in df['Destination Port'].values else 0
+
+    total_fwd_packet_length = df.loc[df['Destination Port'] == port, 'Total Length of Fwd Packets'].values[0] if port in df['Destination Port'].values else 0
+    
+    total_bwd_packets = df.loc[df['Destination Port'] == port, 'Total Bwd Packets'].values[0] if port in df['Destination Port'].values else 0
+    
     total_bwd_packet_length = 0
-    min_packet_length = float(100000000)
-    max_fwd_packet_length = 0
-    min_fwd_packet_length = float(100000)
-    max_bwd_packet_length = 0
-    min_bwd_packet_length = float(100000)
+    min_packet_length =df.loc[df['Destination Port'] == port, 'Min Packet Length'].values[0] if port in df['Destination Port'].values else float('inf')
+     
+    max_fwd_packet_length = df.loc[df['Destination Port'] == port, 'Fwd Packet Length Max'].values[0] if port in df['Destination Port'].values else 0
+
+    min_fwd_packet_length = df.loc[df['Destination Port'] == port, 'Fwd Packet Length Min'].values[0] if port in df['Destination Port'].values else float('inf')
+
+    max_bwd_packet_length = df.loc[df['Destination Port'] == port, 'Bwd Packet Length Max'].values[0] if port in df['Destination Port'].values else 0
+
+    min_bwd_packet_length = df.loc[df['Destination Port'] == port, 'Bwd Packet Length Min'].values[0] if port in df['Destination Port'].values else float('inf')
+
     flow_iat = []
-    bwd_iat = []    
-    fwd_psh_flags = 0
-    bwd_psh_flags = 0
-    fwd_urg_flags = 0
-    bwd_urg_flags = 0    
-    fwd_hdr_len = 0
-    bwd_hdr_len = 0    
-    bwd_packet = 0    
-    fin_flag_count = 0
-    rst_flag_count = 0
-    psh_flag_count = 0
-    ack_flag_count = 0
-    urg_flag_count = 0    
-    init_win_bytes_fwd = 0
-    init_win_bytes_bwd = 0    
-    flow_duration = 0    
+    bwd_iat = []
+    
+    fwd_psh_flags = df.loc[df['Destination Port'] == port, 'Fwd PSH Flag'].values[0] if port in df['Destination Port'].values else 0
+
+    bwd_psh_flags = df.loc[df['Destination Port'] == port, 'Bwd PSH Flags'].values[0] if port in df['Destination Port'].values else 0
+
+    fwd_urg_flags = df.loc[df['Destination Port'] == port, 'Fwd URG Flags'].values[0] if port in df['Destination Port'].values else 0
+
+    bwd_urg_flags = df.loc[df['Destination Port'] == port, 'Bwd URG Flags'].values[0] if port in df['Destination Port'].values else 0
+    
+    fwd_hdr_len = df.loc[df['Destination Port'] == port, 'Fwd Header Length'].values[0] if port in df['Destination Port'].values else 0
+
+    bwd_hdr_len = df.loc[df['Destination Port'] == port, 'Bwd Header Length'].values[0] if port in df['Destination Port'].values else 0
+    
+    bwd_packet = 0
+    
+    fin_flag_count = df.loc[df['Destination Port'] == port, 'fin_flag_count'].values[0] if port in df['Destination Port'].values else 0
+
+    rst_flag_count = df.loc[df['Destination Port'] == port, 'RST Flag Count'].values[0] if port in df['Destination Port'].values else 0
+
+
+    psh_flag_count = df.loc[df['Destination Port'] == port, 'PSH Flag Count'].values[0] if port in df['Destination Port'].values else 0
+
+    ack_flag_count = df.loc[df['Destination Port'] == port, 'ACK Flag Count'].values[0] if port in df['Destination Port'].values else 0
+
+    urg_flag_count =df.loc[df['Destination Port'] == port, 'URG Flag Count'].values[0] if port in df['Destination Port'].values else 0
+    
+    init_win_bytes_fwd = df.loc[df['Destination Port'] == port, 'Init_win_bytes_backward'].values[0] if port in df['Destination Port'].values else 0
+
+    init_win_bytes_bwd = df.loc[df['Destination Port'] == port, 'Init_win_bytes_forward'].values[0] if port in df['Destination Port'].values else 0
+    
+    
+    
     last_packet_time = None 
-    first_packet_time = None     
-    prev_time = None    
+    first_packet_time = None 
+     
+    prev_time = None
+    
     for packet in packets:
          
         packet_time = packet.sniff_time 
@@ -54,11 +88,16 @@ def calculate_features(packets):
             packet_time = packet.sniff_time 
             # Update first packet time if not set yet
          
-            if first_packet_time is None:       
+            if first_packet_time is None:
+               
                 first_packet_time = packet_time
+
             # Update last packet time
-            last_packet_time = packet_time    
-            # Update flow inter-arrival times             
+            last_packet_time = packet_time
+            
+            # Update flow inter-arrival times
+            
+            
             if prev_time is not None:
                 time_diff = abs(packet_time - prev_time)
                 flow_iat.append(time_diff.total_seconds())
@@ -78,7 +117,9 @@ def calculate_features(packets):
             elif 'IPv6' in packet:
                 source_ip = packet.ipv6.src
                 dest_ip = packet.ipv6.dst
-                            
+                
+            # print(f"src ip: {source_ip} , dst_ip: {dest_ip}")
+            
             if source_ip == local_ip[0] or source_ip == local_ip[1]:
                 # Update packet length
                 
@@ -141,7 +182,9 @@ def calculate_features(packets):
                 bwd_psh_flags += 1 if packet.tcp.flags_push == 'True' else 0
                 bwd_urg_flags += 1 if packet.tcp.flags_urg == 'True' else 0 
                 bwd_packet += 1
+                # print("prev_time:",prev_time)
                 if prev_time is not None:
+                #    print("inside if")
                    diff = abs(packet_time - prev_time)
                    bwd_iat.append(diff.total_seconds())
                 prev_time = packet_time   
@@ -178,11 +221,13 @@ def calculate_features(packets):
 
     # Calculate Flow Duration
     if first_packet_time is not None and last_packet_time is not None:
-        flow_duration = (last_packet_time - first_packet_time).total_seconds()
+        flow_duration = (last_packet_time - first_packet_time).total_seconds() 
+        # print(f"flow duration == {flow_duration}")
     else:
         flow_duration = 0
 
     # Calculate Bwd IAT Total  
+    # print("the array is :" , bwd_iat)
     bwd_iat_total = sum(bwd_iat)
 
     # Calculate Bwd IAT Mean
@@ -199,16 +244,23 @@ def calculate_features(packets):
 
     # Calculate Down/Up Ratio
     down_up_ratio = total_fwd_packets / total_bwd_packets if total_bwd_packets != 0 else 0
+    
+ 
+    # print(f"first: {first_packet_time} , last: {last_packet_time} , prev: {prev_time} , flow: {flow_duration}")
   
     # Fill the features dictionary
     features['Flow Duration'] = flow_duration
     features['Total Fwd Packets'] = total_fwd_packets
-    # features['Total Bwd Packets'] = total_bwd_packets
+    features['Total Bwd Packets'] = total_bwd_packets
     features['Total Length of Fwd Packets'] = total_fwd_packet_length
     features['Fwd Packet Length Max'] = max_fwd_packet_length
     features['Fwd Packet Length Min'] = min_fwd_packet_length
     features['Bwd Packet Length Max'] = max_bwd_packet_length
     features['Bwd Packet Length Min'] = min_bwd_packet_length
+    features['Fwd PSH Flags'] = fwd_psh_flags
+    features['Bwd PSH Flags'] = bwd_psh_flags
+    features['Fwd URG Flags'] = fwd_urg_flags
+    features['Bwd URG Flags'] = bwd_urg_flags
     features['Flow Bytes/s'] = flow_bytes_per_sec
     features['Flow Packets/s'] = flow_packets_per_sec
     features['Flow IAT Mean'] = sum(flow_iat) / len(flow_iat) if flow_iat else 0
@@ -218,13 +270,9 @@ def calculate_features(packets):
     features['Bwd IAT Mean'] = bwd_iat_mean
     features['Bwd IAT Std'] = bwd_iat_std
     features['Bwd IAT Max'] = max(bwd_iat) if bwd_iat else 0
-    # features['Bwd IAT Min'] = min(bwd_iat) if bwd_iat else 0
-    features['Fwd PSH Flags'] = fwd_psh_flags
-    features['Bwd PSH Flags'] = bwd_psh_flags
-    features['Fwd URG Flags'] = fwd_urg_flags
-    features['Bwd URG Flags'] = bwd_urg_flags
     features['Fwd Header Length'] = fwd_hdr_len
     features['Bwd Header Length'] = bwd_hdr_len
+    features['Bwd IAT Min'] = min(bwd_iat) if bwd_iat else 0
     features['Bwd Packets/s'] = bwd_packet/flow_duration if flow_duration != 0 else 0
     features['Min Packet Length'] = min_packet_length
     features['FIN Flag Count'] = fin_flag_count
@@ -233,26 +281,12 @@ def calculate_features(packets):
     features['ACK Flag Count'] = ack_flag_count
     features['URG Flag Count'] = urg_flag_count
     features['Down/Up Ratio'] = down_up_ratio 
-    features['Fwd Avg Bytes/Bulk']=0
-    features['Fwd Avg Packets/Bulk']=0
-    features['Fwd Avg Bulk Rate']=0
-    features['Bwd Avg Bytes/Bulk']=0
-    features['Bwd Avg Packets/Bulk']=0
-    features['Bwd Avg Bulk Rate']=0
-    features['Init_win_bytes_forward'] = init_win_bytes_bwd
+    features['Init_win_bytes_forward'] = init_win_bytes_fwd
     features['Init_win_bytes_backward'] = init_win_bytes_bwd
-    features['Active Std']=0
-    features['Active Mean']=0
-    features['Active Max']=0
-    features['Idle Std']=0
-
     return features
 
 def sniff_packets(interface, duration=10):
-    # Dictionary to store features for each destination port
     port_features = defaultdict(list)
-
-    # Start capturing packets
     capture = pyshark.LiveCapture(interface=interface)
 
     start_time = datetime.now()
@@ -268,7 +302,6 @@ def sniff_packets(interface, duration=10):
     return port_features
 
 def write_to_csv(filename, port_features):
-    # Write features to CSV file
     with open(filename, 'w', newline='') as csvfile:
         fieldnames = ['Destination Port'] + list(calculate_features([]).keys())
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -277,7 +310,15 @@ def write_to_csv(filename, port_features):
             features = calculate_features(packets)
             writer.writerow({'Destination Port': port, **features})
             print(f"Destination Port: {port}, Features: {features}")  # Print features for each port
-            
+
+def predict_packet_label(packet):
+    # Tính toán đặc trưng của gói tin
+    features = calculate_features([packet])
+    # Chuyển đổi đặc trưng thành định dạng phù hợp với mô hình (numpy array, DataFrame, ...)
+    features_array = np.array(list(features.values())).reshape(1, -1)  # Đảm bảo định dạng đúng
+    # Dự đoán nhãn
+    label = model.predict(features_array)
+    return label[0]  # Giả sử mô hình trả về một mảng với nhãn dự đoán
 
 if __name__ == "__main__":
     # Set the network interface to capture packets from
@@ -289,4 +330,8 @@ if __name__ == "__main__":
         csv_filename = "packet_features.csv"
         write_to_csv(csv_filename, port_features)
 
-        
+        # Dự đoán nhãn cho mỗi gói tin bắt được
+        for port, packets in port_features.items():
+            for packet in packets:
+                label = predict_packet_label(packet)
+                print(f"Packet on port {port} classified as: {label}")
