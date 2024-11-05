@@ -5,6 +5,9 @@ from collections import defaultdict
 from datetime import datetime
 import joblib  # Thay đổi tùy thuộc vào cách bạn lưu mô hình
 import numpy as np
+import warnings
+# Tắt tất cả các cảnh báo
+warnings.filterwarnings("ignore")
 
 # Tải mô hình đã huấn luyện
 model = joblib.load('/home/kali/Cuoi-Ky-ATTT/IDS-Machine-learning/trained/random_forest_model.joblib')  # Thay đổi đường dẫn đến mô hình của bạn
@@ -252,7 +255,7 @@ def calculate_features(packets):
 
     return features
 
-def sniff_packets(interface, duration=10):
+def sniff_packets(interface, duration=5):
     # Dictionary to store features for each destination port
     port_features = defaultdict(list)
 
@@ -281,14 +284,22 @@ def write_to_csv(filename, port_features):
             writer.writerow({'Destination Port': port, **features})
             print(f"Destination Port: {port}, Features: {features}")  # Print features for each port
 
-def predict_packet_label(packet):
-    # Tính toán đặc trưng của gói tin
-    features = calculate_features([packet])
-    # Chuyển đổi đặc trưng thành định dạng phù hợp với mô hình (numpy array, DataFrame, ...)
-    features_array = np.array(list(features.values())).reshape(1, -1)  # Đảm bảo định dạng đúng
-    # Dự đoán nhãn
-    label = model.predict(features_array)
-    return label[0]  # Giả sử mô hình trả về một mảng với nhãn dự đoán
+import pandas as pd
+import numpy as np
+
+def predict_packet_label_from_csv(csv_filename):
+    # Đọc dữ liệu từ file CSV
+    df = pd.read_csv(csv_filename)
+    
+    # Duyệt qua từng dòng trong DataFrame
+    for index, row in df.iterrows():
+        # Tạo mảng đặc trưng cho từng gói tin, bao gồm cột port
+        features_array = np.array(row).reshape(1, -1)  # Lấy toàn bộ dòng, bao gồm cả cột port
+        # Dự đoán nhãn
+        label = model.predict(features_array)
+        port = int(row[0])  # Cột đầu tiên chứa giá trị port
+        print(f"Packet on port {port} classified as: {label[0]}")  # In ra nhãn dự đoán
+
 
 if __name__ == "__main__":
     # Set the network interface to capture packets from
@@ -301,7 +312,4 @@ if __name__ == "__main__":
         write_to_csv(csv_filename, port_features)
 
         # Dự đoán nhãn cho mỗi gói tin bắt được
-        for port, packets in port_features.items():
-            for packet in packets:
-                label = predict_packet_label(packet)
-                print(f"Packet on port {port} classified as: {label}")
+        predict_packet_label_from_csv(csv_filename)

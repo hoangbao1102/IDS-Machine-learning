@@ -203,7 +203,7 @@ def calculate_features(packets):
     # Fill the features dictionary
     features['Flow Duration'] = flow_duration
     features['Total Fwd Packets'] = total_fwd_packets
-    # features['Total Bwd Packets'] = total_bwd_packets
+    # features['Total Backward Packets'] = total_bwd_packets
     features['Total Length of Fwd Packets'] = total_fwd_packet_length
     features['Fwd Packet Length Max'] = max_fwd_packet_length
     features['Fwd Packet Length Min'] = min_fwd_packet_length
@@ -241,8 +241,8 @@ def calculate_features(packets):
     features['Bwd Avg Bulk Rate']=0
     features['Init_win_bytes_forward'] = init_win_bytes_bwd
     features['Init_win_bytes_backward'] = init_win_bytes_bwd
-    features['Active Std']=0
     features['Active Mean']=0
+    features['Active Std']=0
     features['Active Max']=0
     features['Idle Std']=0
 
