@@ -20,7 +20,7 @@ def get_local_ip():
     ipv6_addresses = [addr[4][0] for addr in ip_addresses if addr[0] == socket.AF_INET6]
     return [ipv6_addresses, ipv4_addresses]
         
-def calculate_features(port,packets):
+def calculate_features(port,packet):
     local_ip = get_local_ip()
     features = {}
     
@@ -82,143 +82,144 @@ def calculate_features(port,packets):
      
     prev_time = None
     
-    for packet in packets:
+    # for packet in packets:
          
+    packet_time = packet.sniff_time 
+    try:
         packet_time = packet.sniff_time 
-        try:
-            packet_time = packet.sniff_time 
-            # Update first packet time if not set yet
-         
-            if first_packet_time is None:
-               
-                first_packet_time = packet_time
+        # Update first packet time if not set yet
+        
+        if first_packet_time is None:
+            
+            first_packet_time = packet_time
 
-            # Update last packet time
-            last_packet_time = packet_time
-            
-            # Update flow inter-arrival times
-            
-            
-            if prev_time is not None:
-                time_diff = abs(packet_time - prev_time)
-                flow_iat.append(time_diff.total_seconds())
-            
+        # Update last packet time
+        last_packet_time = packet_time
+        
+        # Update flow inter-arrival times
+        
+        
+        if prev_time is not None:
+            time_diff = abs(packet_time - prev_time)
+            flow_iat.append(time_diff.total_seconds())
+        
 
-            # Update FIN, RST, PSH, ACK, URG flag counts
-            fin_flag_count += 1 if packet.tcp.flags_fin == 'True' else 0
-            rst_flag_count += 1 if packet.tcp.flags_reset == 'True' else 0
-            psh_flag_count += 1 if packet.tcp.flags_push == 'True' else 0
-            ack_flag_count += 1 if packet.tcp.flags_ack == 'True' else 0
-            urg_flag_count += 1 if packet.tcp.flags_urg == 'True' else 0
+        # Update FIN, RST, PSH, ACK, URG flag counts
+        fin_flag_count += 1 if packet.tcp.flags_fin == 'True' else 0
+        rst_flag_count += 1 if packet.tcp.flags_reset == 'True' else 0
+        psh_flag_count += 1 if packet.tcp.flags_push == 'True' else 0
+        ack_flag_count += 1 if packet.tcp.flags_ack == 'True' else 0
+        urg_flag_count += 1 if packet.tcp.flags_urg == 'True' else 0
+        
+        
+        if 'IP' in packet:
+            source_ip = packet.ip.src
+            dest_ip = packet.ip.dst
+        elif 'IPv6' in packet:
+            source_ip = packet.ipv6.src
+            dest_ip = packet.ipv6.dst
+            
+        # print(f"src ip: {source_ip} , dst_ip: {dest_ip}")
+        
+        if source_ip == local_ip[0] or source_ip == local_ip[1]:
+            # Update packet length
+            
+            length = int(packet.length)
+            total_fwd_packet_length += length
+            total_fwd_packets += 1
+            # Update min and max packet length
+            if length < min_fwd_packet_length:
+                min_fwd_packet_length = length
+                min_packet_length = length
+                
+            if length > max_fwd_packet_length:
+                max_fwd_packet_length = length
+                
+
+            # Update PSH and URG flag counts for forward and backward packets
+            fwd_psh_flags += 1 if packet.tcp.flags_push == 'True' else 0
+            fwd_urg_flags += 1 if packet.tcp.flags_urg == 'True' else 0
+            
+            prev_time = packet_time
             
             
             if 'IP' in packet:
-                source_ip = packet.ip.src
-                dest_ip = packet.ip.dst
+                fwd_hdr_len += int(packet.ip.hdr_len) * 4
+
             elif 'IPv6' in packet:
-                source_ip = packet.ipv6.src
-                dest_ip = packet.ipv6.dst
+                fwd_hdr_len += 40
+
+            if 'TCP' in packet:
+                fwd_hdr_len += int(packet.tcp.dataofs) * 4
+
+            elif 'UDP' in packet:
+                fwd_hdr_len += 8
+
+            if 'ICMP' in packet:
+                fwd_hdr_len += 8
+
+            if 'ARP' in packet:
+                fwd_hdr_len += 28
                 
-            # print(f"src ip: {source_ip} , dst_ip: {dest_ip}")
+            if 'TCP' in packet:
+            # Extract the window size from TCP header
+                window_size = int(packet.tcp.window_size)
             
-            if source_ip == local_ip[0] or source_ip == local_ip[1]:
-                # Update packet length
-                
-                length = int(packet.length)
-                total_fwd_packet_length += length
-                total_fwd_packets += 1
-                # Update min and max packet length
-                if length < min_fwd_packet_length:
-                    min_fwd_packet_length = length
-                    min_packet_length = length
-                    
-                if length > max_fwd_packet_length:
-                    max_fwd_packet_length = length
-                    
-
-                # Update PSH and URG flag counts for forward and backward packets
-                fwd_psh_flags += 1 if packet.tcp.flags_push == 'True' else 0
-                fwd_urg_flags += 1 if packet.tcp.flags_urg == 'True' else 0
-                
-                prev_time = packet_time
-                
-                
-                if 'IP' in packet:
-                   fwd_hdr_len += int(packet.ip.hdr_len) * 4
-
-                elif 'IPv6' in packet:
-                    fwd_hdr_len += 40
-
-                if 'TCP' in packet:
-                    fwd_hdr_len += int(packet.tcp.dataofs) * 4
-
-                elif 'UDP' in packet:
-                    fwd_hdr_len += 8
-
-                if 'ICMP' in packet:
-                    fwd_hdr_len += 8
-
-                if 'ARP' in packet:
-                    fwd_hdr_len += 28
-                    
-                if 'TCP' in packet:
-                # Extract the window size from TCP header
-                    window_size = int(packet.tcp.window_size)
-                
-                # Add the window size to the total
-                    init_win_bytes_fwd += window_size
-                
-            elif dest_ip == local_ip[0] or dest_ip == local_ip[1]:
-                # Packet is incoming to the PC (backward packet)
-                
-                total_bwd_packets += 1
-                length = int(packet.length)
-                total_bwd_packet_length += length
-                if length < min_bwd_packet_length:
-                    min_bwd_packet_length = length
-                    min_packet_length = length
-                if length > max_bwd_packet_length:
-                    max_bwd_packet_length = length
-               
-                bwd_psh_flags += 1 if packet.tcp.flags_push == 'True' else 0
-                bwd_urg_flags += 1 if packet.tcp.flags_urg == 'True' else 0 
-                bwd_packet += 1
-                # print("prev_time:",prev_time)
-                if prev_time is not None:
-                #    print("inside if")
-                   diff = abs(packet_time - prev_time)
-                   bwd_iat.append(diff.total_seconds())
-                prev_time = packet_time   
-                if 'IP' in packet:
-                    bwd_hdr_len += int(packet.ip.hdr_len) * 4
-
-                elif 'IPv6' in packet:
-                    bwd_hdr_len += 40
-
-                if 'TCP' in packet:
-                    bwd_hdr_len += int(packet.tcp.dataofs) * 4
-
-                elif 'UDP' in packet:
-                    bwd_hdr_len += 8
-
-                if 'ICMP' in packet:
-                    bwd_hdr_len += 8
-
-                if 'ARP' in packet:
-                    bwd_hdr_len += 28    
-                
-                if 'TCP' in packet:
-                # Extract the window size from TCP header
-                    window_size = int(packet.tcp.window_size)
-                
-                # Add the window size to the total
-                    init_win_bytes_bwd += window_size
+            # Add the window size to the total
+                init_win_bytes_fwd += window_size
             
+        elif dest_ip == local_ip[0] or dest_ip == local_ip[1]:
+            # Packet is incoming to the PC (backward packet)
             
-           
-        except AttributeError:
-            # Skip packet if it does not have expected attributes
-            continue
+            total_bwd_packets += 1
+            length = int(packet.length)
+            total_bwd_packet_length += length
+            if length < min_bwd_packet_length:
+                min_bwd_packet_length = length
+                min_packet_length = length
+            if length > max_bwd_packet_length:
+                max_bwd_packet_length = length
+            
+            bwd_psh_flags += 1 if packet.tcp.flags_push == 'True' else 0
+            bwd_urg_flags += 1 if packet.tcp.flags_urg == 'True' else 0 
+            bwd_packet += 1
+            # print("prev_time:",prev_time)
+            if prev_time is not None:
+            #    print("inside if")
+                diff = abs(packet_time - prev_time)
+                bwd_iat.append(diff.total_seconds())
+            prev_time = packet_time   
+            if 'IP' in packet:
+                bwd_hdr_len += int(packet.ip.hdr_len) * 4
+
+            elif 'IPv6' in packet:
+                bwd_hdr_len += 40
+
+            if 'TCP' in packet:
+                bwd_hdr_len += int(packet.tcp.dataofs) * 4
+
+            elif 'UDP' in packet:
+                bwd_hdr_len += 8
+
+            if 'ICMP' in packet:
+                bwd_hdr_len += 8
+
+            if 'ARP' in packet:
+                bwd_hdr_len += 28    
+            
+            if 'TCP' in packet:
+            # Extract the window size from TCP header
+                window_size = int(packet.tcp.window_size)
+            
+            # Add the window size to the total
+                init_win_bytes_bwd += window_size
+        
+        
+        
+    except AttributeError:
+        # Skip packet if it does not have expected attributes
+        # continue
+        None
 
     # Calculate Flow Duration
     if first_packet_time is not None and last_packet_time is not None:
@@ -296,7 +297,7 @@ def sniff_packets(interface, duration=100):
     for packet in capture.sniff_continuously(): 
         if 'TCP' in packet:
             dst_port = packet.tcp.dstport
-            calculate_features(dst_port,packets)
+            calculate_features(dst_port,packet)
         # Break the loop if duration exceeds
         if (datetime.now() - start_time).total_seconds() >= duration:
             break
@@ -305,7 +306,7 @@ def sniff_packets(interface, duration=100):
 
 if __name__ == "__main__":
     # Set the network interface to capture packets from
-    interface = "Ethernet"  # Change this to your network interface name
+    interface = "eth0"  # Change this to your network interface name
 
     # Capture packets and extract features
     sniff_packets(interface)
