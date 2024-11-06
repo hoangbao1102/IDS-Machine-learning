@@ -6,11 +6,13 @@ from datetime import datetime
 import joblib  # Thay đổi tùy thuộc vào cách bạn lưu mô hình
 import numpy as np
 import warnings
+from keras.models import load_model
 # Tắt tất cả các cảnh báo
 warnings.filterwarnings("ignore")
 
 # Tải mô hình đã huấn luyện
-model = joblib.load('/home/kali/Cuoi-Ky-ATTT/IDS-Machine-learning/trained/random_forest_model.joblib')  # Thay đổi đường dẫn đến mô hình của bạn
+# model = joblib.load('../trained/random_forest_model.joblib')  # Thay đổi đường dẫn đến mô hình của bạn
+model = load_model("../trained/neural_network_model.keras")
 print('loaded model')
 def get_local_ip():
     # Get the hostname of the local machine
@@ -54,9 +56,12 @@ def calculate_features(packets):
     last_packet_time = None 
     first_packet_time = None     
     prev_time = None    
+    active_durations = []
+    idle_durations = []
+    active_start_time = None
     for packet in packets:
-         
         packet_time = packet.sniff_time 
+        # print(packet)
         try:
             packet_time = packet.sniff_time 
             # Update first packet time if not set yet
@@ -70,7 +75,24 @@ def calculate_features(packets):
                 time_diff = abs(packet_time - prev_time)
                 flow_iat.append(time_diff.total_seconds())
             
+            if prev_time is not None:
+                time_diff = (packet_time - prev_time).total_seconds()
 
+                if time_diff < 1:  # Giả sử ngưỡng 1 giây để xác định khoảng active
+                    # Đang trong khoảng active
+                    if active_start_time is None:
+                        active_start_time = prev_time
+                else:
+                    # Đã kết thúc khoảng active, chuyển sang idle
+                    if active_start_time is not None:
+                        active_duration = (prev_time - active_start_time).total_seconds()
+                        active_durations.append(active_duration)
+                        active_start_time = None
+                    idle_durations.append(time_diff)
+
+            prev_time = packet_time
+            if active_start_time is not None:
+                active_durations.append((prev_time - active_start_time).total_seconds())
             # Update FIN, RST, PSH, ACK, URG flag counts
             fin_flag_count += 1 if packet.tcp.flags_fin == 'True' else 0
             rst_flag_count += 1 if packet.tcp.flags_reset == 'True' else 0
@@ -248,10 +270,11 @@ def calculate_features(packets):
     features['Bwd Avg Bulk Rate']=0
     features['Init_win_bytes_forward'] = init_win_bytes_bwd
     features['Init_win_bytes_backward'] = init_win_bytes_bwd
-    features['Active Std']=0
-    features['Active Mean']=0
-    features['Active Max']=0
-    features['Idle Std']=0
+    # Tính toán các đặc trưng thống kê cho active và idle
+    features['Active Mean'] = sum(active_durations) / len(active_durations) if active_durations else 0
+    features['Active Std'] = (sum((x - features['Active Mean']) ** 2 for x in active_durations) / len(active_durations)) ** 0.5 if active_durations else 0
+    features['Active Max'] = max(active_durations) if active_durations else 0
+    features['Idle Std'] = (sum((x - (sum(idle_durations) / len(idle_durations))) ** 2 for x in idle_durations) / len(idle_durations)) ** 0.5 if idle_durations else 0
 
     return features
 
@@ -303,7 +326,7 @@ def predict_packet_label_from_csv(csv_filename):
 
 if __name__ == "__main__":
     # Set the network interface to capture packets from
-    interface = "eth0"  # Change this to your network interface name
+    interface = "Wi-Fi"  # Change this to your network interface name
     # Capture packets and extract features
     while True:
         port_features = sniff_packets(interface)

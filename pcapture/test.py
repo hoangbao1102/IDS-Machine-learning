@@ -40,6 +40,6 @@ def compare_csv_columns(file1_path, file2_path):
             print(f"Cột {i + 1} file 2: {columns_file2[i]}")
 
 # Ví dụ sử dụng
-file1_path = "/home/kali/Cuoi-Ky-ATTT/IDS-Machine-learning/packet_features.csv"
-file2_path = "/home/kali/Cuoi-Ky-ATTT/IDS-Machine-learning/pcapture/ref.csv"
+file1_path = "C:/DUT/Nam5/Ky9/ATTT/Cuoi Ky/sniff/packet_features.csv"
+file2_path = "C:/DUT/Nam5/Ky9/ATTT/Cuoi Ky/pcapture/ref.csv"
 compare_csv_columns(file1_path, file2_path)
