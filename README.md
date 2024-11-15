@@ -3,7 +3,8 @@ Tất cả chương trình được chứa trong folder "Chuong trinh", trong đ
 - pcapture: chứa các thử nghiệm bắt gói tin
 - test: chứa các xử lý nghiệp vụ
 - trained: chứa các data mẫu và các model đã được huấn luyện cũng như code huấn luyện 
-để chạy chương trình: vào sniff/sniff_packet.py
+
+Để chạy chương trình: vào sniff/sniff_packet.py
 - chỉnh sửa interface bạn muốn bắt gói tin
 - chỉnh sửa model và thư viện tương ứng để load model
 - chạy python sniff_packet.py
